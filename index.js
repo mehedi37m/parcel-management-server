@@ -86,13 +86,88 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/users", async (req, res) => {
-      const user = req.body;
-      console.log(user);
 
+
+    app.get('/users/admin/:email',  async (req, res) => {
+      const email = req.params.email;
+
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: 'forbidden access' })
+      // }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === 'admin';
+      }
+      res.send({ admin });
+    })
+
+
+
+
+    app.post('/users', async(req, res) => {
+      const user = req.body;
+      const query = {email: user.email}
+      const existingUser = await userCollection.findOne(query)
+      if(existingUser){
+        return res.send({message : 'user already exists', insertedId:null})
+      }
       const result = await userCollection.insertOne(user);
+      res.send(result)
+    })
+
+
+    app.patch('/users/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)}
+      const updateDoc ={
+        $set:{
+          role:'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter, updateDoc)
       res.send(result);
+
+    })
+
+
+
+    app.patch('/users/deliveryman/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            role: 'deliveryMan',
+          },
+        };
+    
+        const result = await userCollection.updateOne(filter, updateDoc);
+    
+        if (result.modifiedCount > 0) {
+          res.status(200).json({ message: 'User updated to delivery man successfully' });
+        } else {
+          res.status(404).json({ message: 'User not found or not updated' });
+        }
+      } catch (error) {
+        console.error('Error updating user to delivery man:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+      }
     });
+
+
+
+    app.delete('/users/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await userCollection.deleteOne(query)
+      res.send(result);
+
+    })
+
+
 
     // menu collection
     app.get("/items", async (req, res) => {
@@ -179,9 +254,9 @@ async function run() {
     // get cart items
     app.get("/itemsCart", async (req, res) => {
       
-      if (req.user.email !== req.query.email) {
-        return res.status(403).send({ message: 'forbidden access' })
-    }
+    //   if (req.user.email !== req.query.email) {
+    //     return res.status(403).send({ message: 'forbidden access' })
+    // }
         // console.log(req.query.email)
         let query = {};
         if(req.query?.email){
@@ -205,6 +280,20 @@ async function run() {
           res.send("items not found");
         }
       });
+
+
+      app.patch('/itemsCart/onTheWay/:id', async (req, res) => {
+        const id = req.params.id;
+        const filter = {_id: new ObjectId(id)}
+        const updateDoc ={
+          $set:{
+            status:'On The Way'
+          }
+        }
+        const result = await itemCartCollection.updateOne(filter, updateDoc)
+        res.send(result);
+  
+      })
 
 
       app.delete("/itemsCart/:id", async (req, res) => {
