@@ -119,6 +119,8 @@ async function run() {
     })
 
 
+
+
     app.patch('/users/admin/:id', async (req, res) => {
       const id = req.params.id;
       const filter = {_id: new ObjectId(id)}
@@ -282,18 +284,29 @@ async function run() {
       });
 
 
-      app.patch('/itemsCart/onTheWay/:id', async (req, res) => {
-        const id = req.params.id;
-        const filter = {_id: new ObjectId(id)}
-        const updateDoc ={
-          $set:{
-            status:'On The Way'
-          }
-        }
-        const result = await itemCartCollection.updateOne(filter, updateDoc)
-        res.send(result);
+      app.patch("/itemsCart/onTheWay/:id", async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { status, deliveryMan_name, deliveryMan_id} = req.body;
+          console.log(status, deliveryMan_name);
+          const filter = { _id: new ObjectId(id) };
+          const updateDoc = {
+            $set: {
+              status,
+              deliveryMan_name,
+              deliveryMan_id,
+              deliveryMan_email
+            },
+          };
+          
   
-      })
+          const result = await itemCartCollection.updateOne(filter, updateDoc);
+          res.send(result);
+        } catch (error) {
+          console.error("Error updating item cart:", error);
+          res.status(500).send("Internal Server Error");
+        }
+      });
 
 
       app.delete("/itemsCart/:id", async (req, res) => {
