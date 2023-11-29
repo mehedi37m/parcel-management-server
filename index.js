@@ -189,6 +189,19 @@ async function run() {
     });
 
 
+
+
+    app.get('/myAddedItems/:email', async (req, res) => {
+      const result = await menuCollection.find({
+        email: req.params.email
+      }).toArray();
+      res.send(result)
+    })
+
+
+
+
+
       // get single items
       app.get("/items/:id", async (req, res) => {
         const id = req.params.id;
