@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
@@ -16,6 +17,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.send("server is running");
@@ -32,6 +34,35 @@ const client = new MongoClient(uri, {
   },
 });
 
+
+
+ // middleware
+ const logger = (req, res, next) => {
+  console.log('log: info', req.method, req.url);
+  next();
+}
+
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  // console.log('token in the middleware', token);
+  // no token available 
+  if (!token) {
+      return res.status(401).send({ message: 'unauthorized access' })
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+          return res.status(401).send({ message: 'unauthorized access' })
+      }
+      req.user = decoded;
+      next();
+  })
+}
+
+
+
+
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -40,51 +71,39 @@ async function run() {
     const userCollection = client.db("parcelManagement").collection("users");
     const menuCollection = client.db("parcelManagement").collection("menu");
     const itemCartCollection = client.db("parcelManagement").collection("cart");
+    const reviewCollection = client.db("parcelManagement").collection("review");
 
     // jwt related api
-    app.post("/jwt", async (req, res) => {
+    app.post('/jwt', logger, async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "365h",
-      });
-      res.send({ token });
-    });
+      console.log('user for token', user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
 
-    // middleware
-    const verifyToken = (req, res, next) => {
-      // console.log('verify Token',req.headers.authorization);
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: "unauthorized access token" });
-      }
-      const token = req.headers.authorization.split(" ")[1];
+      res.cookie('token', token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'none'
+      })
+          .send({ success: true });
+  })
 
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).send({ message: "unauthorized access" });
-        }
-        req.decoded = decoded;
-        next();
-      });
-    };
+  app.post('/logout', async (req, res) => {
+      const user = req.body;
+      console.log('logging out', user);
+      res.clearCookie('token', { maxAge: 0 }).send({ success: true })
+  })
 
-    // very admin after verifytoken is successful
-    //   const verifyAdmin = async(req, res, next) => {
-    //     const email = req.decoded.email;
-    //     const query = {email: email};
-    //     const user =await userCollection.findOne(query);
-    //     const isAdmin = user?.role == 'admin';
-    //     if(!isAdmin){
-    //       return res.status(403).send({message: 'admin not found'})
-    //     }
-    //     next();
+   
 
-    //   }
+ 
+    
 
     // user collection
     app.get("/users", async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+
 
 
 
@@ -199,9 +218,6 @@ async function run() {
     })
 
 
-
-
-
       // get single items
       app.get("/items/:id", async (req, res) => {
         const id = req.params.id;
@@ -269,9 +285,7 @@ async function run() {
     // get cart items
     app.get("/itemsCart", async (req, res) => {
       
-    //   if (req.user.email !== req.query.email) {
-    //     return res.status(403).send({ message: 'forbidden access' })
-    // }
+  
         // console.log(req.query.email)
         let query = {};
         if(req.query?.email){
@@ -300,15 +314,15 @@ async function run() {
       app.patch("/itemsCart/onTheWay/:id", async (req, res) => {
         try {
           const id = req.params.id;
-          const { status, deliveryMan_name, deliveryMan_id} = req.body;
+          const { status, deliveryMan_name, deliveryMan_email} = req.body;
           console.log(status, deliveryMan_name);
           const filter = { _id: new ObjectId(id) };
           const updateDoc = {
             $set: {
               status,
               deliveryMan_name,
-              deliveryMan_id,
-              deliveryMan_email
+              deliveryMan_email,
+             
             },
           };
           
@@ -330,6 +344,27 @@ async function run() {
         const result = await itemCartCollection.deleteOne(query);
         // console.log(result);
         res.send(result);
+      });
+
+
+       // review collection
+
+       app.get("/review", async (req, res) => {
+        const result = await reviewCollection.find().toArray();
+        res.send(result);
+      });
+
+
+
+       app.post("/review", async (req, res) => {
+        const newItem = req.body;
+     
+        try {
+          const result = await reviewCollection.insertOne(newItem);
+          res.send(result);
+        } catch (error) {
+          res.send("items not found");
+        }
       });
 
 
